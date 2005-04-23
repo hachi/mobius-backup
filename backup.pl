@@ -10,7 +10,7 @@ use Storable;
 use Data::Dumper;
 $| = 1;
 
-# backup kuiki.net '/var/autofs/net/ryoko/www=www'
+# backup.pl 600 kuiki.net '/var/autofs/net/ryoko/www=www'
 
 my $media_size = shift @ARGV;
 my $backup_name = shift @ARGV;
@@ -23,7 +23,7 @@ BEGIN {
   eval "sub KB () { $kb }";
   eval "sub MB () { $mb }";
 
-  eval "sub MAX_FILE_SIZE () { $mb * 300";
+  eval "sub MAX_FILE_SIZE () { $mb * 300 }";
 }
 
 # BACKUPNAME => [FILENAME, MODE, UID, GID, SIZE, MTIME, BTIME];
@@ -90,7 +90,7 @@ foreach my $backup_basename (@backup_basenames) {
             }
             debug_out( "\n" ) if DEBUG;
         }
-        elsif ($stat[SIZE] < 300 * MB) {    
+        elsif ($stat[SIZE] < MAX_FILE_SIZE) {    
             if (exists $carryover_files->{$cd_name}) {
                 debug_out( "    Existing File " ) if DEBUG;
                 push @stat, $carryover_files->{$cd_name}->[BTIME];
