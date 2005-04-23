@@ -10,7 +10,7 @@ use Storable;
 use Data::Dumper;
 $| = 1;
 
-# backup.pl 600 kuiki.net '/var/autofs/net/ryoko/www=www'
+# cd-backup 600 kuiki.net '/var/autofs/net/ryoko/www=www'
 
 my $media_size = shift @ARGV;
 my $backup_name = shift @ARGV;
