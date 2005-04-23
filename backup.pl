@@ -1,0 +1,244 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+
+use File::Find;
+use English;
+use Fcntl ':mode';
+use Storable;
+use Data::Dumper;
+$| = 1;
+
+# backup kuiki.net '/var/autofs/net/ryoko/www=www'
+
+my $media_size = shift @ARGV;
+my $backup_name = shift @ARGV;
+my @backup_basenames = map { [ split( /(?<!\\)=/, $_, 2 ) ] } @ARGV;
+
+# DEFINE A FEW CONSTANTS
+BEGIN {
+  my $kb = 1024;
+  my $mb = 1024 * $kb;
+  eval "sub KB () { $kb }";
+  eval "sub MB () { $mb }";
+
+  eval "sub MAX_FILE_SIZE () { $mb * 300";
+}
+
+# BACKUPNAME => [FILENAME, MODE, UID, GID, SIZE, MTIME, BTIME];
+
+sub FILENAME () { 0 }
+sub MODE () { 1 }
+sub UID () { 2 }
+sub GID () { 3 }
+sub SIZE () { 4 }
+sub MTIME () { 5 }
+sub BTIME () { 6 }
+
+sub DEBUG () { 0 }
+
+sub debug_out {
+  print @_;
+}
+
+# LOAD CARRYOVER QUEUE FROM LAST RUN
+# LOAD CARRYOVER FILE LIST FROM LAST RUN
+# 
+# INITIALIZE NEW QUEUE, EMPTY
+# INITIALIZE LEFTOVER QUEUE, EMPTY
+
+my $carryover_queue = load_data( "${backup_name}-queue" ) || {};
+my $carryover_files = load_data( "${backup_name}-files" ) || {};
+my $last_run_time = ${load_data( "${backup_name}-time" ) || \0};
+
+my $queue = {};
+my $leftovers = {};
+
+sub load_data {
+  return undef unless -e $_[0];
+  return retrieve( $_[0] );
+}
+
+printf( "Current Time: (%s) %s\n", $BASETIME, scalar gmtime( $BASETIME ) );
+printf( "New File Time: (%s) %s\n", $last_run_time, scalar gmtime( $last_run_time ) );
+
+# LOOP OVER BASE FILE SOURCES
+#  IF DIRECTORY
+#    IF .backup exists and contains "prune=1" set $prune
+#    GO TO NEXT FILE
+#  IF FILE WAS CHANGED SINCE LAST RUN, PUSH IN TO NEW QUEUE
+#  ELSIF FILE EXISTS IN LOADED CARRYOVER QUEUE, PUSH IN TO NEW QUEUE
+#  ELSE PUSH IN TO LEFTOVER LIST
+#  DELETE FROM CARRYOVER FILE LIST
+#  DELETE FROM CARRYOVER QUEUE LIST
+
+foreach my $backup_basename (@backup_basenames) {
+    debug_out( "Starting $backup_basename->[0] ($backup_basename->[1])\n" ) if DEBUG;
+    
+    my $wanted = sub {
+        my @stat = ( $File::Find::name, (lstat($_))[2,4,5,7,9]);
+        my $cd_name = $File::Find::name;
+        $cd_name =~ s/^$backup_basename->[0]/$backup_basename->[1]/;
+        debug_out( "   Found $File::Find::name ($cd_name): " ) if DEBUG;
+
+        if ($stat[MODE] & S_IFDIR) {
+            debug_out( "  DIRECTORY" ) if DEBUG;
+            if (-e "$File::Find::name/.backup-prune") {
+                $File::Find::prune = 1;
+                debug_out( "  PRUNING!" ) if DEBUG;
+            }
+            debug_out( "\n" ) if DEBUG;
+        }
+        elsif ($stat[SIZE] < 300 * MB) {    
+            if (exists $carryover_files->{$cd_name}) {
+                debug_out( "    Existing File " ) if DEBUG;
+                push @stat, $carryover_files->{$cd_name}->[BTIME];
+                delete $carryover_files->{$cd_name};
+            }
+            else {
+                debug_out( "    New File " ) if DEBUG;
+                push @stat, 0;
+            }
+
+            if ($stat[MTIME] > $last_run_time) {
+                debug_out( " $stat[MTIME] > $last_run_time\n" ) if DEBUG;
+                $queue->{$cd_name} = \@stat;
+            }
+            elsif (exists $carryover_queue->{$cd_name}) {
+                debug_out( " exists $cd_name in \$carryover_queue\n" ) if DEBUG;
+                $queue->{$cd_name} = \@stat;
+                delete $carryover_queue->{$cd_name};
+            }
+            else {
+                debug_out( " whatever else\n" ) if DEBUG;
+                $leftovers->{$cd_name} = \@stat;
+            }
+        }
+    };
+    
+    find( { wanted => $wanted }, $backup_basename->[0] );
+}
+
+# DELETE CARRYOVER QUEUE
+# DELETE CARRYOVER FILE LIST
+
+undef $carryover_queue;
+undef $carryover_files;
+
+# INITIALIZE NEW FILE LIST
+
+my $new_files = {};
+
+# ORDER OF FILES TO BE BACKED UP
+#  QUEUE SORTED BY MTIME ASCENDING (LOWEST MODIFIED FIRST)
+#  LEFTOVERS SORTED BY MTIME ASCENDING (LOWEST MODIFIED FIRST)
+#
+# AS FILES ARE BACKED UP
+#  COPY IN TO NEW FILE LIST
+#  DELETE FROM QUEUE
+
+open my $MKFS, "|mkisofs -V $BASETIME -o ${backup_name}.iso -graft-points -D -J -joliet-long -R -l -pad -path-list -";
+#open my $MKFS, ">/dev/null";
+
+my $media_space = $media_size * MB;
+my $file_ages = {};
+
+foreach my $file ( sort { $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys %$queue ) {
+    my $stat = $queue->{$file};
+    if ( $stat->[SIZE] < $media_space ) {
+        my $cd_name = $file;
+        my $escaped_file = $stat->[FILENAME];
+
+        foreach ($cd_name, $escaped_file) {
+            s/\\/\\\\/;
+            s/=/\\=/;
+        }
+
+        print "N: $file size:$stat->[SIZE]/$media_space...added\n";
+        print $MKFS "$cd_name=$escaped_file\n";
+        $media_space -= $stat->[SIZE];
+        $stat->[BTIME] = $BASETIME;
+     
+        delete $queue->{$file};
+        $new_files->{$file} = $stat;
+    }
+    $file_ages->{$stat->[BTIME]} += $stat->[SIZE];
+}
+
+my $return = 0;
+if ((keys %$queue) > 0) {
+  my $size = 0;
+  my $remaining = 0;
+  foreach my $file (keys %$queue) {
+    $size += $queue->{$file}->[SIZE];
+    $remaining++;
+  }
+  print "$remaining Files leftover ($size bytes.)\n";
+  $return = 1;
+} else {
+  print "No files leftover\n";
+}
+
+foreach my $file ( sort { $leftovers->{$a}->[BTIME] <=> $leftovers->{$b}->[BTIME] } keys %$leftovers ) {
+    my $stat = $leftovers->{$file};
+    if ( $stat->[SIZE] < $media_space ) {
+        my $cd_name = $file;
+        my $escaped_file = $stat->[FILENAME];
+
+        foreach ($cd_name, $escaped_file) {
+            s/\\/\\\\/;
+            s/=/\\=/;
+        }
+
+        print "O: $file size:$stat->[SIZE]/$media_space...added\n";
+        print $MKFS "$cd_name=$escaped_file\n";
+        $media_space -= $stat->[SIZE];
+        $stat->[BTIME] = $BASETIME;
+  
+        delete $leftovers->{$file};
+        $new_files->{$file} = $stat;
+    }
+    $file_ages->{$stat->[BTIME]} += $stat->[SIZE];
+}
+
+# SAVE QUEUE AS CARRYOVER QUEUE
+#
+# COPY ALL REMAINING FILES IN QUEUE TO NEW FILE LIST, DELETE AS WE GO
+# DELETE QUEUE
+#
+# COPY ALL REMAINING FILES IN LEFTOVERS TO NEW FILE LIST, DELETE AS WE GO
+# DELETE LEFTOVERS
+#
+# SAVE NEW FILE LIST AS CARRYOVER FILE LIST
+
+print "Storing Data\n";
+
+store( $queue, "${backup_name}-queue" );
+store( \$BASETIME, "${backup_name}-time" );
+
+while (my ($key, $value) = each %$queue) {
+    $new_files->{$key} = $value;
+}
+
+while (my ($key, $value) = each %$leftovers) {
+    $new_files->{$key} = $value;
+}
+
+store( $new_files, "${backup_name}-files" );
+
+print "Final MKFS calls.\n";
+
+print $MKFS "${backup_name}-queue\n";
+print $MKFS "${backup_name}-time\n";
+print $MKFS "${backup_name}-files\n";
+
+close $MKFS;
+
+print "Analyzing\n";
+
+foreach my $date (sort keys %$file_ages) {
+    print "$file_ages->{$date} bytes remaining from " . scalar(localtime($date)) . " ($date)\n";
+}
+
+exit $return;
