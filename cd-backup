@@ -138,7 +138,7 @@ my $new_files = {};
 #  COPY IN TO NEW FILE LIST
 #  DELETE FROM QUEUE
 
-open my $MKFS, "|mkisofs -V $BASETIME -o ${backup_name}.iso -graft-points -D -J -joliet-long -R -l -pad -path-list -";
+open my $MKFS, "|mkisofs -quiet -V $BASETIME -o ${backup_name}.iso -graft-points -D -J -joliet-long -R -l -pad -path-list -";
 #open my $MKFS, ">/dev/null";
 
 my $media_space = $media_size * MB;
