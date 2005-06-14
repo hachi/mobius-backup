@@ -7,3 +7,6 @@ install:	cd-backup
 
 diff-install:
 	diff -u $(BIN)/cd-backup ./cd-backup || true
+
+test:
+	perl -c ./cd-backup

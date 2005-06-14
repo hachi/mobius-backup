@@ -75,6 +75,34 @@ printf( "New File Time: (%s) %s\n", $last_run_time, scalar gmtime( $last_run_tim
 
 foreach my $backup_basename (@backup_basenames) {
 	debug_out( "Starting $backup_basename->[0] ($backup_basename->[1])\n" ) if DEBUG;
+
+	my @prune;
+
+	my $preprocess = sub {
+		unshift @prune, {};
+		if (-e "$File::Find::dir/.backuprc") {
+			if (open my $rc, '<', "$File::Find::dir/.backuprc") {
+				while (my $input = <$rc>) {
+					chomp $input;
+					next unless ($input =~ m/\S/);
+					if (my ($prune) = $input =~ m/^\s*Prune\s+(.*\S+)\s*$/) {
+						$prune[0]->{"$File::Find::dir/$prune"} = $prune;
+					}
+					else {
+						warn "Unrecognized line '$input' in .backuprc in $File::Find::name\n";
+					}
+				}
+			}
+			else {
+				warn( "Couldn't open .backuprc in $File::Find::dir\n" );
+			}
+		}
+		return @_;
+	};
+
+	my $postprocess = sub {
+		shift @prune;
+	};
 	
 	my $wanted = sub {
 		my @stat = ( $File::Find::name, (lstat($_))[2,4,5,7,9]);
@@ -84,7 +112,11 @@ foreach my $backup_basename (@backup_basenames) {
 
 		if ($stat[MODE] & S_IFDIR) {
 			debug_out( "  DIRECTORY" ) if DEBUG;
-			if (-e "$File::Find::name/.backup-prune") {
+			if (
+				-e "$File::Find::name/.backup-prune"
+				or
+				grep { $File::Find::name eq $_ } map { keys %$_ } @prune
+			) {
 				$File::Find::prune = 1;
 				debug_out( "  PRUNING!" ) if DEBUG;
 			}
@@ -117,7 +149,7 @@ foreach my $backup_basename (@backup_basenames) {
 		}
 	};
 	
-	find( { wanted => $wanted }, $backup_basename->[0] );
+	find( { wanted => $wanted, preprocess => $preprocess, postprocess => $postprocess }, $backup_basename->[0] );
 }
 
 # DELETE CARRYOVER QUEUE
