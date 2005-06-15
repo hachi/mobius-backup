@@ -36,7 +36,10 @@ sub SIZE () { 4 }
 sub MTIME () { 5 }
 sub BTIME () { 6 }
 
-sub DEBUG () { 0 }
+BEGIN {
+	my $debug = $ENV{DEBUG} || 0;
+	eval "sub DEBUG () { $debug }";
+}
 
 sub debug_out {
 	print @_;
@@ -180,7 +183,9 @@ my $new_files = {};
 #  COPY IN TO NEW FILE LIST
 #  DELETE FROM QUEUE
 
-open my $MKFS, "|mkisofs -quiet -V $BASETIME -o ${backup_name}.iso -graft-points -D -J -joliet-long -R -l -pad -path-list -";
+my $quiet = DEBUG ? "" : "-quiet ";
+
+open my $MKFS, "|mkisofs $quiet -V $BASETIME -o ${backup_name}.iso -graft-points -D -J -joliet-long -R -l -pad -path-list -";
 #open my $MKFS, ">/dev/null";
 
 my $media_space = $media_size * MB;
