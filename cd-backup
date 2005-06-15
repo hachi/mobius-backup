@@ -36,7 +36,7 @@ sub SIZE () { 4 }
 sub MTIME () { 5 }
 sub BTIME () { 6 }
 
-sub DEBUG () { 1 }
+sub DEBUG () { 0 }
 
 sub debug_out {
 	print @_;
