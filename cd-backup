@@ -36,7 +36,7 @@ sub SIZE () { 4 }
 sub MTIME () { 5 }
 sub BTIME () { 6 }
 
-sub DEBUG () { 0 }
+sub DEBUG () { 1 }
 
 sub debug_out {
 	print @_;
@@ -84,9 +84,19 @@ foreach my $backup_basename (@backup_basenames) {
 			if (open my $rc, '<', "$File::Find::dir/.backuprc") {
 				while (my $input = <$rc>) {
 					chomp $input;
+					print "[BackupRC] $input\n";
 					next unless ($input =~ m/\S/);
 					if (my ($prune) = $input =~ m/^\s*Prune\s+(.*\S+)\s*$/) {
-						$prune[0]->{"$File::Find::dir/$prune"} = $prune;
+						my $string = "$File::Find::dir/$prune";
+						$prune[0]->{$prune} = sub {
+							shift eq $string;
+						};
+					}
+					elsif (my ($reg) = $input =~ m/^\s*PruneRegex\s+(.*\S+)\s*$/) {
+						my $regex = qr($reg);
+						$prune[0]->{$prune} = sub {
+							shift =~ $regex;
+						};
 					}
 					else {
 						warn "Unrecognized line '$input' in .backuprc in $File::Find::name\n";
@@ -115,7 +125,7 @@ foreach my $backup_basename (@backup_basenames) {
 			if (
 				-e "$File::Find::name/.backup-prune"
 				or
-				grep { $File::Find::name eq $_ } map { keys %$_ } @prune
+				grep { $_->($File::Find::name) } map { values %$_ } @prune
 			) {
 				$File::Find::prune = 1;
 				debug_out( "  PRUNING!" ) if DEBUG;
