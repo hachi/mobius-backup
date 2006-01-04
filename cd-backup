@@ -198,8 +198,8 @@ foreach my $file ( sort { $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys
 		my $escaped_file = $stat->[FILENAME];
 
 		foreach ($cd_name, $escaped_file) {
-			s/\\/\\\\/;
-			s/=/\\=/;
+			s/\\/\\\\/g;
+			s/=/\\=/g;
 		}
 
 		print "N: $file size:$stat->[SIZE]/$media_space...added\n";
@@ -234,8 +234,8 @@ foreach my $file ( sort { $leftovers->{$a}->[BTIME] <=> $leftovers->{$b}->[BTIME
 		my $escaped_file = $stat->[FILENAME];
 
 		foreach ($cd_name, $escaped_file) {
-			s/\\/\\\\/;
-			s/=/\\=/;
+			s/\\/\\\\/g;
+			s/=/\\=/g;
 		}
 
 		print "O: $file size:$stat->[SIZE]/$media_space...added\n";
