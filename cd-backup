@@ -228,7 +228,8 @@ my $new_files = {};
 
 my $quiet = DEBUG ? "" : "-quiet ";
 
-open my $MKFS, "|mkisofs $quiet -V $BASETIME -o ${backup_name}.iso -graft-points -D -J -joliet-long -R -l -pad -path-list -";
+#open my $MKFS, "|mkisofs $quiet -V $BASETIME -o ${backup_name}.iso -graft-points -D -J -joliet-long -R -l -pad -path-list -";
+open my $MKFS, "|genisoimage $quiet -V $BASETIME -o ${backup_name}.iso -graft-points -D -R -l -pad -path-list -";
 #open my $MKFS, ">/dev/null";
 
 my $media_space = $media_size * MB;
