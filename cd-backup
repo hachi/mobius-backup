@@ -239,7 +239,9 @@ debug_out( "Phase 3\n" ) if DEBUG;
 
 foreach my $file ( sort { $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys %$queue ) {
 	my $stat = $queue->{$file};
-	if ( $stat->[SIZE] < $media_space ) {
+	my $apparent_size = ($stat->[SIZE] + length($stat->[FILENAME]));
+
+	if ( $apparent_size < $media_space ) {
 		my $cd_name = $file;
 		my $escaped_file = $stat->[FILENAME];
 
@@ -250,7 +252,7 @@ foreach my $file ( sort { $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys
 
 		printf "% 5s/%- 5s\tN: %s ...added\n", prettysize($stat->[SIZE]), prettysize($media_space), $file;
 		print $MKFS "$cd_name=$escaped_file\n";
-		$media_space -= $stat->[SIZE];
+		$media_space -= $apparent_size;
 		$stat->[BTIME] = $BASETIME;
 	 
 		delete $queue->{$file};
