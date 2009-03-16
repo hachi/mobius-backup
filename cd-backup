@@ -137,7 +137,7 @@ foreach my $backup_basename (@backup_basenames) {
 					}
 					elsif (my ($reg) = $input =~ m/^\s*PruneRegex\s+(.*\S+)\s*$/) {
 						my $regex = qr($reg);
-						$prune[0]->{$prune} = sub {
+						$prune[0]->{$reg} = sub {
 							shift =~ $regex;
 						};
 					}
