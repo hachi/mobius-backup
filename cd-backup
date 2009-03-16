@@ -11,6 +11,14 @@ use Fcntl ':mode';
 use YAML::Syck;
 $| = 1;
 
+my $el = `tput el`;
+
+my $civis = `tput civis`;
+my $cnorm = `tput cnorm`;
+
+my $rmam = `tput rmam`;
+my $smam = `tput smam`;
+
 # cd-backup 600 kuiki.net '/var/autofs/net/ryoko/www=www'
 
 my $media_size = shift @ARGV;
@@ -104,6 +112,8 @@ printf( "New File Time: (%s) %s\n", $last_run_time, scalar gmtime( $last_run_tim
 #  DELETE FROM CARRYOVER FILE LIST
 #  DELETE FROM CARRYOVER QUEUE LIST
 
+print STDERR "$civis$rmam";
+
 foreach my $backup_basename (@backup_basenames) {
 	debug_out( "Starting $backup_basename->[0] ($backup_basename->[1])\n" ) if DEBUG;
 
@@ -152,6 +162,7 @@ foreach my $backup_basename (@backup_basenames) {
 		debug_out( "   Found $File::Find::name ($cd_name): " ) if DEBUG;
 
 		if ($stat[MODE] & S_IFDIR) {
+                        print STDERR "$el$File::Find::name\r" if !DEBUG;
 			debug_out( "  DIRECTORY" ) if DEBUG;
 			if (
 				-e "$File::Find::name/.backup-prune"
@@ -192,6 +203,8 @@ foreach my $backup_basename (@backup_basenames) {
 	
 	find( { wanted => $wanted, preprocess => $preprocess, postprocess => $postprocess }, $backup_basename->[0] );
 }
+
+print STDERR "$cnorm$smam";
 
 # DELETE CARRYOVER QUEUE
 # DELETE CARRYOVER FILE LIST
