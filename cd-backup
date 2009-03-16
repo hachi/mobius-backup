@@ -23,7 +23,7 @@ my $smam = `tput smam`;
 
 my $media_size = shift @ARGV;
 my $backup_name = shift @ARGV;
-my @backup_basenames = map { [ split( /(?<!\\)=/, $_, 2 ) ] } @ARGV;
+my @backup_basenames = map { [ split(/(?<!\\)=/, $_) ] } @ARGV;
 
 # DEFINE A FEW CONSTANTS
 BEGIN {
@@ -117,6 +117,8 @@ print STDERR "$civis$rmam";
 foreach my $backup_basename (@backup_basenames) {
 	debug_out( "Starting $backup_basename->[0] ($backup_basename->[1])\n" ) if DEBUG;
 
+	my $newfile_time = $backup_basename->[2] || 0;
+
 	my @prune;
 
 	my $preprocess = sub {
@@ -182,7 +184,7 @@ foreach my $backup_basename (@backup_basenames) {
 			}
 			else {
 				debug_out( "	New File " ) if DEBUG;
-				push @stat, 0;
+				push @stat, $newfile_time;
 			}
 
 			if ($stat[MTIME] > $last_run_time) {
