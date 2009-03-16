@@ -43,7 +43,33 @@ BEGIN {
 }
 
 sub debug_out {
-	print @_;
+	print STDERR @_;
+}
+
+my @suffixes = qw(B K M G T);
+
+sub prettysize {
+    my $size = 0 + shift;
+
+    return "0B" if $size == 0;
+
+    my $order = int(log($size) / log(1024));
+
+    $order = $#suffixes if $order > $#suffixes;
+
+    my $adjusted = $size / (1024 ** $order);
+
+    my $suffix = $suffixes[$order];
+
+    if ($adjusted >= 1000) {
+        return sprintf("%4.0f%s", $adjusted, $suffix);
+    } elsif ($adjusted >= 100) {
+        return sprintf("%3.0f%s", $adjusted, $suffix);
+    } elsif ($adjusted >= 10) {
+        return sprintf("%2.1f%s", $adjusted, $suffix);
+    } else {
+        return sprintf("%1.2f%s", $adjusted, $suffix);
+    }
 }
 
 # LOAD CARRYOVER QUEUE FROM LAST RUN
@@ -204,7 +230,7 @@ foreach my $file ( sort { $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys
 			s/=/\\=/g;
 		}
 
-		print "N: $file size:$stat->[SIZE]/$media_space...added\n";
+		printf "% 5s/%- 5s\tN: %s ...added\n", prettysize($stat->[SIZE]), prettysize($media_space), $file;
 		print $MKFS "$cd_name=$escaped_file\n";
 		$media_space -= $stat->[SIZE];
 		$stat->[BTIME] = $BASETIME;
@@ -293,7 +319,7 @@ close $MKFS;
 print "Analyzing\n";
 
 foreach my $date (sort keys %$file_ages) {
-	print "$file_ages->{$date} bytes remaining from " . scalar(localtime($date)) . " ($date)\n";
+	printf "%s remaining from %s (%d)\n", prettysize($file_ages->{$date}), scalar(localtime($date)), $date;
 }
 
 exit $return;
