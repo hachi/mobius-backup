@@ -235,6 +235,8 @@ open my $MKFS, "|genisoimage $quiet -V $BASETIME -o ${backup_name}.iso -graft-po
 my $media_space = $media_size * MB;
 my $file_ages = {};
 
+debug_out( "Phase 3\n" ) if DEBUG;
+
 foreach my $file ( sort { $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys %$queue ) {
 	my $stat = $queue->{$file};
 	if ( $stat->[SIZE] < $media_space ) {
@@ -270,6 +272,8 @@ if ((keys %$queue) > 0) {
 } else {
 	print "No files leftover\n";
 }
+
+debug_out( "Phase 4\n" ) if DEBUG;
 
 foreach my $file ( sort { $leftovers->{$a}->[BTIME] <=> $leftovers->{$b}->[BTIME] } keys %$leftovers ) {
 	my $stat = $leftovers->{$file};
@@ -330,8 +334,10 @@ print $MKFS "${backup_name}-queue\n";
 print $MKFS "${backup_name}-time\n";
 print $MKFS "${backup_name}-files\n";
 
-close $MKFS;
+my $rv = close $MKFS;
+my $ev = $?;
 
+print "Ended with an exit code of $ev and a return of $rv\n";
 print "Analyzing\n";
 
 foreach my $date (sort keys %$file_ages) {
