@@ -6,8 +6,9 @@ use warnings;
 use File::Find;
 use English;
 use Fcntl ':mode';
-use Storable;
-use Data::Dumper;
+#use Storable;
+#use Data::Dumper;
+use YAML::Syck;
 $| = 1;
 
 # cd-backup 600 kuiki.net '/var/autofs/net/ryoko/www=www'
@@ -60,7 +61,8 @@ my $leftovers = {};
 
 sub load_data {
 	return undef unless -e $_[0];
-	return retrieve( $_[0] );
+#	return retrieve( $_[0] );
+	return LoadFile $_[0];
 }
 
 printf( "Current Time: (%s) %s\n", $BASETIME, scalar gmtime( $BASETIME ) );
@@ -261,8 +263,12 @@ foreach my $file ( sort { $leftovers->{$a}->[BTIME] <=> $leftovers->{$b}->[BTIME
 
 print "Storing Data\n";
 
-store( $queue, "${backup_name}-queue" );
-store( \$BASETIME, "${backup_name}-time" );
+#store( $queue, "${backup_name}-queue" );
+#store( \$BASETIME, "${backup_name}-time" );
+debug_out( "Phase 5\n" ) if DEBUG;
+DumpFile( "${backup_name}-queue", $queue );
+debug_out( "Phase 6\n" ) if DEBUG;
+DumpFile( "${backup_name}-time", \$BASETIME );
 
 while (my ($key, $value) = each %$queue) {
 	$new_files->{$key} = $value;
@@ -272,7 +278,9 @@ while (my ($key, $value) = each %$leftovers) {
 	$new_files->{$key} = $value;
 }
 
-store( $new_files, "${backup_name}-files" );
+debug_out( "Phase 7\n" ) if DEBUG;
+#store( $new_files, "${backup_name}-files" );
+DumpFile( "${backup_name}-files", $new_files );
 
 print "Final MKFS calls.\n";
 
