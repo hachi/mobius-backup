@@ -269,7 +269,7 @@ if ((keys %$queue) > 0) {
 		$size += $queue->{$file}->[SIZE];
 		$remaining++;
 	}
-	print "$remaining Files leftover ($size bytes.)\n";
+	printf "%d Files leftover (%s bytes.)\n", $remaining, prettysize($size);
 	$return = 1;
 } else {
 	print "No files leftover\n";
