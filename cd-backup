@@ -239,7 +239,7 @@ open my $MKFS, "|genisoimage $quiet -V $BASETIME -o ${backup_name}.iso -graft-po
 #open my $MKFS, ">/dev/null";
 
 my $media_space = $media_size * MB;
-my $file_ages = {};
+my $file_prefix_ages = {};
 
 debug_out( "Phase 3\n" ) if DEBUG;
 
@@ -265,7 +265,8 @@ foreach my $file ( sort { $queue->{$a}->[PRIO] <=> $queue->{$b}->[PRIO] ||
 		delete $queue->{$file};
 		$new_files->{$file} = $stat;
 	}
-	$file_ages->{$stat->[BTIME]} += $stat->[SIZE];
+	$file_prefix_ages->{$stat->[BTIME]}->{$stat->[PREFIX]}->{bytes} += $stat->[SIZE];
+	$file_prefix_ages->{$stat->[BTIME]}->{$stat->[PREFIX]}->{files}++;
 }
 
 my $return = 0;
@@ -304,7 +305,8 @@ foreach my $file ( sort { $leftovers->{$a}->[BTIME] <=> $leftovers->{$b}->[BTIME
 		delete $leftovers->{$file};
 		$new_files->{$file} = $stat;
 	}
-	$file_ages->{$stat->[BTIME]} += $stat->[SIZE];
+	$file_prefix_ages->{$stat->[BTIME]}->{$stat->[PREFIX]}->{bytes} += $stat->[SIZE];
+	$file_prefix_ages->{$stat->[BTIME]}->{$stat->[PREFIX]}->{files}++;
 }
 
 # SAVE QUEUE AS CARRYOVER QUEUE
@@ -350,8 +352,10 @@ my $ev = $?;
 print "Ended with an exit code of $ev and a return of $rv\n";
 print "Analyzing\n";
 
-foreach my $date (sort keys %$file_ages) {
-	printf "%s remaining from %s (%d)\n", prettysize($file_ages->{$date}), scalar(localtime($date)), $date;
+foreach my $date (sort keys %$file_prefix_ages) {
+        while (my ($prefix, $stats) = each %{$file_prefix_ages->{$date}}) {
+	    printf "%s %d files %s remaining from %s (%d)\n", $prefix, $stats->{files}, prettysize($stats->{bytes}), scalar(localtime($date)), $date;
+        }
 }
 
 exit $return;
