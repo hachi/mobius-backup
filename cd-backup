@@ -35,7 +35,7 @@ BEGIN {
 	eval "sub MAX_FILE_SIZE () { $mb * 300 }";
 }
 
-# BACKUPNAME => [FILENAME, MODE, UID, GID, SIZE, MTIME, BTIME];
+# BACKUPNAME => [FILENAME, MODE, UID, GID, SIZE, MTIME, BTIME, PRIO, PREFIX];
 
 sub FILENAME () { 0 }
 sub MODE () { 1 }
@@ -44,6 +44,8 @@ sub GID () { 3 }
 sub SIZE () { 4 }
 sub MTIME () { 5 }
 sub BTIME () { 6 }
+sub PRIO () { 7 }
+sub PREFIX () { 8 }
 
 BEGIN {
 	my $debug = $ENV{DEBUG} || 0;
@@ -117,7 +119,7 @@ print STDERR "$civis$rmam";
 foreach my $backup_basename (@backup_basenames) {
 	debug_out( "Starting $backup_basename->[0] ($backup_basename->[1])\n" ) if DEBUG;
 
-	my $newfile_time = $backup_basename->[2] || 0;
+	my $priority = $backup_basename->[2] || 0;
 
 	my @prune;
 
@@ -158,7 +160,11 @@ foreach my $backup_basename (@backup_basenames) {
 	};
 	
 	my $wanted = sub {
-		my @stat = ( $File::Find::name, (lstat($_))[2,4,5,7,9]);
+		my @stat;
+                $stat[FILENAME] = $File::Find::name;
+                @stat[MODE, UID, GID, SIZE, MTIME] =  (lstat($_))[2,4,5,7,9];
+                $stat[PRIO] = $priority;
+                $stat[PREFIX] = $backup_basename->[1];
 		my $cd_name = $File::Find::name;
 		$cd_name =~ s/^$backup_basename->[0]/$backup_basename->[1]/;
 		debug_out( "   Found $File::Find::name ($cd_name): " ) if DEBUG;
@@ -179,12 +185,12 @@ foreach my $backup_basename (@backup_basenames) {
 		elsif ($stat[SIZE] < MAX_FILE_SIZE) {	
 			if (exists $carryover_files->{$cd_name}) {
 				debug_out( "	Existing File " ) if DEBUG;
-				push @stat, $carryover_files->{$cd_name}->[BTIME];
+				$stat[BTIME] = $carryover_files->{$cd_name}->[BTIME];
 				delete $carryover_files->{$cd_name};
 			}
 			else {
 				debug_out( "	New File " ) if DEBUG;
-				push @stat, $newfile_time;
+				$stat[BTIME] = 0;
 			}
 
 			if ($stat[MTIME] > $last_run_time) {
@@ -237,7 +243,8 @@ my $file_ages = {};
 
 debug_out( "Phase 3\n" ) if DEBUG;
 
-foreach my $file ( sort { $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys %$queue ) {
+foreach my $file ( sort { $queue->{$a}->[PRIO] <=> $queue->{$b}->[PRIO] ||
+                          $queue->{$a}->[MTIME] <=> $queue->{$b}->[MTIME] } keys %$queue ) {
 	my $stat = $queue->{$file};
 	my $apparent_size = ($stat->[SIZE] + length($stat->[FILENAME]));
 
@@ -277,7 +284,8 @@ if ((keys %$queue) > 0) {
 
 debug_out( "Phase 4\n" ) if DEBUG;
 
-foreach my $file ( sort { $leftovers->{$a}->[BTIME] <=> $leftovers->{$b}->[BTIME] } keys %$leftovers ) {
+foreach my $file ( sort { $leftovers->{$a}->[BTIME] <=> $leftovers->{$b}->[BTIME] ||
+                          $leftovers->{$a}->[PRIO] <=> $leftovers->{$b}->[PRIO] } keys %$leftovers ) {
 	my $stat = $leftovers->{$file};
 	if ( $stat->[SIZE] < $media_space ) {
 		my $cd_name = $file;
